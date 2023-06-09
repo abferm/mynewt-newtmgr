@@ -31,6 +31,7 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/mtech_lora"
 	"mynewt.apache.org/newtmgr/nmxact/nmble"
 	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
+	"mynewt.apache.org/newtmgr/nmxact/nmisotp"
 	"mynewt.apache.org/newtmgr/nmxact/nmserial"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 	"mynewt.apache.org/newtmgr/nmxact/udp"
@@ -153,6 +154,13 @@ func GetXport() (xport.Xport, error) {
 		cfg := mtech_lora.NewXportCfg()
 		globalXport = mtech_lora.NewLoraXport(cfg)
 
+	case config.CONN_TYPE_ISOTP:
+		sc, err := config.ParseISOTPConnString(cp.ConnString)
+		if err != nil {
+			return nil, err
+		}
+
+		globalXport = nmisotp.NewISOTPXport(sc)
 	default:
 		return nil, util.FmtNewtError("Unknown connection type: %s (%d)",
 			config.ConnTypeToString(cp.Type), int(cp.Type))
@@ -185,6 +193,10 @@ func buildSesnCfg() (sesn.SesnCfg, error) {
 
 	switch cp.Type {
 	case config.CONN_TYPE_SERIAL_PLAIN:
+		sc.MgmtProto = sesn.MGMT_PROTO_NMP
+		return sc, nil
+
+	case config.CONN_TYPE_ISOTP:
 		sc.MgmtProto = sesn.MGMT_PROTO_NMP
 		return sc, nil
 

@@ -5,6 +5,7 @@ go 1.12
 require (
 	github.com/JuulLabs-OSS/ble v0.0.0-20200716215611-d4fcc9d598bb
 	github.com/JuulLabs-OSS/cbgo v0.0.2
+	github.com/abferm/candi v0.0.0-20221104220755-7cbe2ef66a95
 	github.com/abiosoft/ishell v2.0.0+incompatible // indirect
 	github.com/abiosoft/ishell/v2 v2.0.2
 	github.com/fatih/color v1.14.1 // indirect
