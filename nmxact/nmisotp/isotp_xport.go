@@ -22,22 +22,24 @@ package nmisotp
 import (
 	"fmt"
 
+	"github.com/abferm/candi/isotp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
 type XportCfg struct {
-	BusName        string
-	RXAddr, TXAddr uint32
-	Mtu            int
+	BusName     string
+	SendAddr    isotp.Addr
+	ReceiveAddr isotp.Addr
+	Mtu         int
 }
 
 func NewXportCfg() *XportCfg {
 	return &XportCfg{
-		BusName: "can0",
-		RXAddr:  255,
-		TXAddr:  254,
-		Mtu:     256,
+		BusName:     "can0",
+		SendAddr:    isotp.NewAddr(254, 255),
+		ReceiveAddr: isotp.NewAddr(252, 253),
+		Mtu:         256,
 	}
 }
 

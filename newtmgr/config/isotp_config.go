@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/abferm/candi/isotp"
 	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/nmxact/nmisotp"
 )
@@ -51,19 +52,21 @@ func ParseISOTPConnString(cs string) (*nmisotp.XportCfg, error) {
 		case "bus":
 			sc.BusName = v
 
-		case "RX":
-			addr, err := strconv.ParseUint(v, 10, 32)
+		case "receive":
+			var rx, tx uint32
+			_, err := fmt.Sscanf(v, "%d:%d", &rx, &tx)
 			if err != nil {
-				return sc, einvalISOTPConnString("Invalid RX Address: %s", v)
+				return sc, einvalISOTPConnString("Invalid Receive Address Pair: %s", v)
 			}
-			sc.RXAddr = uint32(addr)
+			sc.ReceiveAddr = isotp.NewAddr(rx, tx)
 
-		case "TX":
-			addr, err := strconv.ParseUint(v, 10, 32)
+		case "send":
+			var rx, tx uint32
+			_, err := fmt.Sscanf(v, "%d:%d", &rx, &tx)
 			if err != nil {
-				return sc, einvalISOTPConnString("Invalid TX Address: %s", v)
+				return sc, einvalISOTPConnString("Invalid Receive Address Pair: %s", v)
 			}
-			sc.TXAddr = uint32(addr)
+			sc.SendAddr = isotp.NewAddr(rx, tx)
 
 		case "mtu":
 			var err error

@@ -35,10 +35,10 @@ import (
 )
 
 type ISOTPSesn struct {
-	cfg   sesn.SesnCfg
-	xpCfg *XportCfg
-	conn  net.Conn
-	txvr  *mgmt.Transceiver
+	cfg                   sesn.SesnCfg
+	xpCfg                 *XportCfg
+	sendConn, receiveConn net.Conn
+	txvr                  *mgmt.Transceiver
 }
 
 func NewISOTPSesn(xpCfg *XportCfg, cfg sesn.SesnCfg) (*ISOTPSesn, error) {
@@ -57,7 +57,7 @@ func NewISOTPSesn(xpCfg *XportCfg, cfg sesn.SesnCfg) (*ISOTPSesn, error) {
 }
 
 func (s *ISOTPSesn) Open() error {
-	if s.conn != nil {
+	if s.sendConn != nil {
 		return nmxutil.NewSesnAlreadyOpenError(
 			"Attempt to open an already-open ISO-TP session")
 	}
@@ -67,30 +67,51 @@ func (s *ISOTPSesn) Open() error {
 		return err
 	}
 
-	conn, err := bus.Dial(isotp.NewAddr(s.xpCfg.RXAddr, s.xpCfg.TXAddr))
+	send, err := bus.Dial(s.xpCfg.SendAddr)
 	if err != nil {
 		return err
 	}
-	s.conn = conn
+	s.sendConn = send
+
+	receive, err := bus.Dial(s.xpCfg.ReceiveAddr)
+	if err != nil {
+		return err
+	}
+	s.receiveConn = receive
+
+	go func() {
+		buff := make([]byte, s.MtuIn())
+		rxLen, err := s.receiveConn.Read(buff)
+		if err != nil {
+			s.txvr.ErrorAll(fmt.Errorf("RX Error: %w", err))
+		}
+		if s.cfg.MgmtProto == sesn.MGMT_PROTO_OMP {
+			s.txvr.DispatchCoap(buff[:rxLen])
+		} else if s.cfg.MgmtProto == sesn.MGMT_PROTO_NMP {
+			s.txvr.DispatchNmpRsp(buff[:rxLen])
+		}
+	}()
 
 	return nil
 }
 
 func (s *ISOTPSesn) Close() error {
-	if s.conn == nil {
+	if !s.IsOpen() {
 		return nmxutil.NewSesnClosedError(
 			"Attempt to close an unopened ISOTP session")
 	}
 
-	s.conn.Close()
+	s.sendConn.Close()
+	s.receiveConn.Close()
 	s.txvr.ErrorAll(fmt.Errorf("closed"))
 	s.txvr.Stop()
-	s.conn = nil
+	s.sendConn = nil
+	s.receiveConn = nil
 	return nil
 }
 
 func (s *ISOTPSesn) IsOpen() bool {
-	return s.conn != nil
+	return s.sendConn != nil && s.receiveConn != nil
 }
 
 func (s *ISOTPSesn) MtuIn() int {
@@ -109,8 +130,12 @@ func (s *ISOTPSesn) TxRxMgmt(m *nmp.NmpMsg,
 	}
 
 	txRaw := func(b []byte) error {
-		_, err := s.conn.Write(b)
-		return err
+		fmt.Printf("TX MGMT: %x, len(%d)\n", b, len(b))
+		_, err := s.sendConn.Write(b)
+		if err != nil {
+			return fmt.Errorf("TX Error: %w", err)
+		}
+		return nil
 	}
 	return s.txvr.TxRxMgmt(txRaw, m, s.MtuOut(), timeout)
 }
@@ -137,7 +162,8 @@ func (s *ISOTPSesn) TxCoap(m coap.Message) error {
 		return fmt.Errorf("Attempt to transmit over closed ISO-TP session")
 	}
 	txRaw := func(b []byte) error {
-		_, err := s.conn.Write(b)
+		fmt.Printf("TX Coap: %x, len(%d)\n", b, len(b))
+		_, err := s.sendConn.Write(b)
 		return err
 	}
 
