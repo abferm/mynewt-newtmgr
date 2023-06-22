@@ -80,15 +80,19 @@ func (s *ISOTPSesn) Open() error {
 	s.receiveConn = receive
 
 	go func() {
-		buff := make([]byte, s.MtuIn())
-		rxLen, err := s.receiveConn.Read(buff)
-		if err != nil {
-			s.txvr.ErrorAll(fmt.Errorf("RX Error: %w", err))
-		}
-		if s.cfg.MgmtProto == sesn.MGMT_PROTO_OMP {
-			s.txvr.DispatchCoap(buff[:rxLen])
-		} else if s.cfg.MgmtProto == sesn.MGMT_PROTO_NMP {
-			s.txvr.DispatchNmpRsp(buff[:rxLen])
+		for {
+			// TODO: this routine does not handle mtu mismatch,
+			// this should be easy to add if necessary
+			buff := make([]byte, s.MtuIn())
+			rxLen, err := s.receiveConn.Read(buff)
+			if err != nil {
+				s.txvr.ErrorAll(fmt.Errorf("RX Error: %w", err))
+			}
+			if s.cfg.MgmtProto == sesn.MGMT_PROTO_OMP {
+				s.txvr.DispatchCoap(buff[:rxLen])
+			} else if s.cfg.MgmtProto == sesn.MGMT_PROTO_NMP {
+				s.txvr.DispatchNmpRsp(buff[:rxLen])
+			}
 		}
 	}()
 
@@ -130,7 +134,6 @@ func (s *ISOTPSesn) TxRxMgmt(m *nmp.NmpMsg,
 	}
 
 	txRaw := func(b []byte) error {
-		fmt.Printf("TX MGMT: %x, len(%d)\n", b, len(b))
 		_, err := s.sendConn.Write(b)
 		if err != nil {
 			return fmt.Errorf("TX Error: %w", err)
@@ -162,7 +165,6 @@ func (s *ISOTPSesn) TxCoap(m coap.Message) error {
 		return fmt.Errorf("Attempt to transmit over closed ISO-TP session")
 	}
 	txRaw := func(b []byte) error {
-		fmt.Printf("TX Coap: %x, len(%d)\n", b, len(b))
 		_, err := s.sendConn.Write(b)
 		return err
 	}
