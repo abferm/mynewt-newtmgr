@@ -83,7 +83,7 @@ func (s *ISOTPSesn) Open() error {
 		for {
 			// TODO: this routine does not handle mtu mismatch,
 			// this should be easy to add if necessary
-			buff := make([]byte, s.MtuIn())
+			buff := make([]byte, s.xpCfg.Mtu)
 			rxLen, err := s.receiveConn.Read(buff)
 			if err != nil {
 				s.txvr.ErrorAll(fmt.Errorf("RX Error: %w", err))
