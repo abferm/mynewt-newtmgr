@@ -20,18 +20,22 @@
 package nmisotp
 
 import (
+	"errors"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"github.com/abferm/candi/isotp"
 	"github.com/runtimeco/go-coap"
+	log "github.com/sirupsen/logrus"
 	"mynewt.apache.org/newtmgr/nmxact/mgmt"
 	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/omp"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
+	"mynewt.apache.org/newtmgr/nmxact/udp"
 )
 
 type ISOTPSesn struct {
@@ -81,22 +85,32 @@ func (s *ISOTPSesn) Open() error {
 
 	go func() {
 		for {
-			// TODO: this routine does not handle mtu mismatch,
-			// this should be easy to add if necessary
-			buff := make([]byte, s.xpCfg.Mtu)
-			rxLen, err := s.receiveConn.Read(buff)
-			if err != nil {
-				s.txvr.ErrorAll(fmt.Errorf("RX Error: %w", err))
-				continue
-			}
-			if s.cfg.MgmtProto == sesn.MGMT_PROTO_OMP {
-				s.txvr.DispatchCoap(buff[:rxLen])
-			} else if s.cfg.MgmtProto == sesn.MGMT_PROTO_NMP {
-				s.txvr.DispatchNmpRsp(buff[:rxLen])
+			err := s.rx()
+			if errors.Is(err, os.ErrClosed) {
+				return
 			}
 		}
 	}()
 
+	return nil
+}
+
+func (s *ISOTPSesn) rx() error {
+	// NOTE: there have been issues trying to read just the mtu size,
+	// read in MAX_PACKET_SIZE instead like the udp transport does
+	buff := make([]byte, udp.MAX_PACKET_SIZE)
+	rxLen, err := s.receiveConn.Read(buff)
+	if err != nil {
+		s.txvr.ErrorAll(fmt.Errorf("RX Error: %w", err))
+		log.Errorf("ISO-TP RX Error: %s", err)
+		return err
+	}
+	log.Debugf("ISO-TP Read %d bytes", rxLen)
+	if s.cfg.MgmtProto == sesn.MGMT_PROTO_OMP {
+		s.txvr.DispatchCoap(buff[:rxLen])
+	} else if s.cfg.MgmtProto == sesn.MGMT_PROTO_NMP {
+		s.txvr.DispatchNmpRsp(buff[:rxLen])
+	}
 	return nil
 }
 
